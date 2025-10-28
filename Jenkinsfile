@@ -1,32 +1,40 @@
 #!groovy
 
 pipeline {
-  agent none
-  stages {
-    stage('Maven Install') {
-      agent {
-        docker {
-          image 'maven:3.8.8'
+    agent none
+
+    stages {
+        stage('Build with Maven') {
+            agent {
+                docker {
+                    image 'eclipse-temurin:25-jdk'
+                    reuseNode true
+                }
+            }
+            steps {
+                sh 'apt-get update && apt-get install -y maven'
+                sh 'mvn -version'
+                sh 'mvn clean package -DskipTests'
+            }
         }
-      }
-      steps {
-        sh 'mvn clean install'
-      }
-    }
-    stage('Docker Build') {
-      agent any
-      steps {
-        sh 'docker build -t edisonospina/spring-petclinic:latest .'
-      }
-    }
-    stage('Docker Push') {
-      agent any
-      steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerHub', passwordVariable: 'dockerHubPassword', usernameVariable: 'dockerHubUser')]) {
-          sh "docker login -u ${env.dockerHubUser} -p ${env.dockerHubPassword}"
-          sh 'docker push edisonospina/spring-petclinic:latest'
+
+        stage('Build Docker Image') {
+            agent any
+            steps {
+
+                sh 'docker build -t edisonospina/spring-petclinic:latest .'
+            }
         }
-      }
+
+        stage('Push Docker Image') {
+            agent any
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerHub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+
+                    sh 'docker push edisonospina/spring-petclinic:latest'
+                }
+            }
+        }
     }
-  }
 }
